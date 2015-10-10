@@ -565,8 +565,9 @@ readHookedBuildInfo =
 
 -- |Parse the given package file.
 readPackageDescription :: Verbosity -> FilePath -> IO GenericPackageDescription
-readPackageDescription =
+readPackageDescription = kagadek $
     readAndParseFile withUTF8FileContents parsePackageDescription
+  where kagadek = undefined
 
 stanzas :: [Field] -> [[Field]]
 stanzas [] = []
@@ -1067,7 +1068,7 @@ parsePackageDescription file = do
         -- Put these through the normal parsing pass too, so that we
         -- collect the ModRenamings
         let depFlds = filter isConstraint simplFlds
-        
+
         mapM_
             (\(Section l n _ _) -> lift . warning $
                 "Unexpected section '" ++ n ++ "' on line " ++ show l)
