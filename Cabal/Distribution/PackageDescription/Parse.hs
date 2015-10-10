@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Distribution.PackageDescription.Parse
@@ -565,10 +566,21 @@ readHookedBuildInfo =
 
 -- |Parse the given package file.
 readPackageDescription :: Verbosity -> FilePath -> IO GenericPackageDescription
-readPackageDescription = kagadek =<<
-    readAndParseFile withUTF8FileContents parsePackageDescription
+readPackageDescription v p = kagadek =<<
+    readAndParseFile withUTF8FileContents parsePackageDescription v p
   where kagadek :: GenericPackageDescription -> IO GenericPackageDescription
-        kagadek = return
+        kagadek gpd = do
+          let pd          = packageDescription gpd
+              mb_lib      = library pd
+              mb_exp_mods :: Maybe [ModuleName]
+              mb_exp_mods = fmap exposedModules mb_lib
+
+              expand :: ModuleName -> IO [ModuleName]
+              expand = return . return
+
+          (x :: Maybe [ModuleName]) <- fmap (mapM expand) mb_exp_mods
+          let xx = fmap concat x
+          return gpd{packageDescription=pd {library=xx}}
 
 stanzas :: [Field] -> [[Field]]
 stanzas [] = []

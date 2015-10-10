@@ -39,7 +39,7 @@ import System.FilePath
 
 -- | A valid Haskell module name.
 --
-newtype ModuleName = ModuleName [String]
+data ModuleName = ModuleName [String] | GlobPattern String
   deriving (Eq, Generic, Ord, Read, Show, Typeable, Data)
 
 instance Binary ModuleName
