@@ -54,17 +54,17 @@ instance Text ModuleName where
 
     where
       component = do
-        c  <- Parse.satisfy Char.isUpper
+        c  <- Parse.satisfy (\x -> Char.isUpper x || x == '*')
         cs <- Parse.munch validModuleChar
         return (c:cs)
 
 validModuleChar :: Char -> Bool
-validModuleChar c = Char.isAlphaNum c || c == '_' || c == '\'' || c == '*'
+validModuleChar c = Char.isAlphaNum c || c == '_' || c == '\''
 
 validModuleComponent :: String -> Bool
 validModuleComponent []     = False
-validModuleComponent (c:cs) = Char.isUpper c
-                           && all validModuleChar cs
+validModuleComponent (c:cs) = (c:cs) == "*" || (Char.isUpper c
+                           && all validModuleChar cs)
 
 {-# DEPRECATED simple "use ModuleName.fromString instead" #-}
 simple :: String -> ModuleName
