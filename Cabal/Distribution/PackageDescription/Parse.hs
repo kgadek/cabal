@@ -565,9 +565,10 @@ readHookedBuildInfo =
 
 -- |Parse the given package file.
 readPackageDescription :: Verbosity -> FilePath -> IO GenericPackageDescription
-readPackageDescription = kagadek $
+readPackageDescription = kagadek =<<
     readAndParseFile withUTF8FileContents parsePackageDescription
-  where kagadek = undefined
+  where kagadek :: GenericPackageDescription -> IO GenericPackageDescription
+        kagadek = return
 
 stanzas :: [Field] -> [[Field]]
 stanzas [] = []
