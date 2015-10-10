@@ -39,7 +39,8 @@ module Distribution.PackageDescription.Parse (
         binfoFieldDescrs,
         sourceRepoFieldDescrs,
         testSuiteFieldDescrs,
-        flagFieldDescrs
+        flagFieldDescrs,
+        expandGlobs
   ) where
 
 import Data.Char     (isSpace)
@@ -566,21 +567,26 @@ readHookedBuildInfo =
 
 -- |Parse the given package file.
 readPackageDescription :: Verbosity -> FilePath -> IO GenericPackageDescription
-readPackageDescription v p = kagadek =<<
+readPackageDescription v p = expandGlobs =<<
     readAndParseFile withUTF8FileContents parsePackageDescription v p
-  where kagadek :: GenericPackageDescription -> IO GenericPackageDescription
-        kagadek gpd = do
-          let pd          = packageDescription gpd
-              mb_lib      = library pd
-              mb_exp_mods :: Maybe [ModuleName]
-              mb_exp_mods = fmap exposedModules mb_lib
 
-              expand :: ModuleName -> IO [ModuleName]
-              expand = return . return
+expandGlobs :: GenericPackageDescription -> IO GenericPackageDescription
+expandGlobs gpd = do
+  let pd          = packageDescription gpd
+      mb_lib      = library pd
+      mb_exp_mods :: Maybe [ModuleName]
+      mb_exp_mods = fmap exposedModules mb_lib
 
-          (x :: Maybe [ModuleName]) <- fmap (mapM expand) mb_exp_mods
-          let xx = fmap concat x
-          return gpd{packageDescription=pd {library=xx}}
+      expand :: ModuleName -> IO [ModuleName]
+      expand = return . return
+
+  case mb_exp_mods of
+    Just exp_mods -> do
+      (x :: [ModuleName]) <- fmap concat $ mapM expand exp_mods
+      let foo :: Maybe Library
+          foo = fmap (\a -> a {exposedModules=x}) mb_lib
+      return gpd{packageDescription=pd{library=foo}}
+    _             -> return gpd
 
 stanzas :: [Field] -> [[Field]]
 stanzas [] = []
