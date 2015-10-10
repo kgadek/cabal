@@ -1,3 +1,5 @@
+{-# LANGUAGE ViewPatterns #-}
+
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Distribution.Simple.Build
@@ -23,6 +25,10 @@ module Distribution.Simple.Build (
     writeAutogenFiles,
   ) where
 
+import Control.Monad (forM)
+import Control.Applicative ((<$>))
+import Data.List (intersperse)
+import qualified System.FilePath.Glob as Glob
 import qualified Distribution.Simple.GHC   as GHC
 import qualified Distribution.Simple.GHCJS as GHCJS
 import qualified Distribution.Simple.JHC   as JHC
@@ -46,7 +52,7 @@ import Distribution.PackageDescription
          , BenchmarkInterface(..), allBuildInfo, defaultRenaming )
 import qualified Distribution.InstalledPackageInfo as IPI
 import qualified Distribution.ModuleName as ModuleName
-import Distribution.ModuleName (ModuleName)
+import Distribution.ModuleName (ModuleName(..))
 
 import Distribution.Simple.Setup
          ( Flag(..), BuildFlags(..), ReplFlags(..), fromFlag )
@@ -95,12 +101,23 @@ import System.Directory
 -- -----------------------------------------------------------------------------
 -- |Build the libraries and executables in this package.
 
+deglobTheGlob :: PackageDescription -> IO PackageDescription
+deglobTheGlob pkgDesc =
+  case library pkgDesc of
+    Nothing -> return pkgDesc
+    Just thelib@(exposedModules -> expMod) -> do
+      fpaths <- forM expMod $ \(ModuleName modBlocks) -> Glob.glob $ intercalate "/" modBlocks  -- not windows compat
+      return pkgDesc{library = Just thelib{exposedModules = ModuleName <$> fpaths}}
+
+
 build    :: PackageDescription  -- ^ Mostly information from the .cabal file
          -> LocalBuildInfo      -- ^ Configuration information
          -> BuildFlags          -- ^ Flags that the user passed to build
          -> [ PPSuffixHandler ] -- ^ preprocessors to run before compiling
          -> IO ()
-build pkg_descr lbi flags suffixes = do
+build pkg_descr_globbed lbi flags suffixes = do
+  pkg_descr <- deglobTheGlob pkg_descr_globbed
+
   let distPref  = fromFlag (buildDistPref flags)
       verbosity = fromFlag (buildVerbosity flags)
 

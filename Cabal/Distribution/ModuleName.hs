@@ -13,7 +13,7 @@
 -- Data type for Haskell module names.
 
 module Distribution.ModuleName (
-        ModuleName,
+        ModuleName(..),
         fromString,
         components,
         toFilePath,
@@ -59,7 +59,7 @@ instance Text ModuleName where
         return (c:cs)
 
 validModuleChar :: Char -> Bool
-validModuleChar c = Char.isAlphaNum c || c == '_' || c == '\''
+validModuleChar c = Char.isAlphaNum c || c == '_' || c == '\'' || c == '*'
 
 validModuleComponent :: String -> Bool
 validModuleComponent []     = False
