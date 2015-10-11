@@ -1,4 +1,5 @@
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE LambdaCase #-}
 
 -----------------------------------------------------------------------------
 -- |
@@ -25,10 +26,12 @@ module Distribution.Simple.Build (
     writeAutogenFiles,
   ) where
 
+import Data.List.Split (splitOn)
 import Control.Monad (forM)
 import qualified Debug.Trace as Debug
 import Control.Applicative ((<$>))
 import Data.List (intersperse)
+import System.FilePath (normalise)
 import System.FilePath.Posix (dropExtension)
 import qualified System.FilePath.Glob as Glob
 import qualified Distribution.Simple.GHC   as GHC
@@ -108,25 +111,33 @@ deglobTheGlob pkgDesc =
   case library pkgDesc of
     Nothing -> return pkgDesc
     Just thelib@(exposedModules -> expMod) -> do
-      fpaths <- forM expMod $ \(ModuleName modBlocks) -> do
-          let tmpdir = intercalate "/" modBlocks
-              tmpdir' = takeWhile (/= '*') tmpdir
-          Debug.traceM "<<< modBlocks"
-          Debug.traceShowM modBlocks
-          Debug.traceM "  < tmpdir"
-          Debug.traceShowM tmpdir
-          Debug.traceM "  < tmpdir'"
-          Debug.traceShowM tmpdir'
-          res <- matchDirFileGlob tmpdir' ".hs"
-          Debug.traceM "  < res"
-          Debug.traceShowM res
-          Debug.traceM ">>>"
-          return res
+      fpaths <- forM expMod aux
           --Glob.glob $ intercalate "/" modBlocks  -- not windows compat
-      let fpaths' = fmap (fmap dropExtension) fpaths
       --Debug.traceShowM pkgDesc
-      Debug.traceShowM fpaths'
-      return pkgDesc{library = Just thelib{exposedModules = ModuleName <$> fpaths}}
+      Debug.traceShowM fpaths
+      return pkgDesc{library = Just thelib{exposedModules = ModuleName <$> (filter (not.null) . concat $ fpaths)}}
+  where aux :: ModuleName -> IO [[String]]
+        aux (ModuleName modBlocks) | last modBlocks == "*" = do
+            let tmpdir = intercalate "/" modBlocks
+                tmpdir' = takeWhile (/= '*') tmpdir
+            Debug.traceM "<<< modBlocks"
+            Debug.traceShowM modBlocks
+            Debug.traceM "  < tmpdir"
+            Debug.traceShowM tmpdir
+            Debug.traceM "  < tmpdir'"
+            Debug.traceShowM tmpdir'
+            res <- matchDirFileGlob tmpdir' "*.hs"
+            Debug.traceM "  < res"
+            Debug.traceShowM res
+            let res' = fmap (normalise . (tmpdir' ++) . dropExtension) res
+            Debug.traceM "  < res'"
+            Debug.traceShowM res'
+            let res'' = fmap (splitOn "/") res'
+            Debug.traceM "  < res''"
+            Debug.traceShowM res''
+            Debug.traceM ">>>"
+            return res''
+        aux (ModuleName modBlocks) = return . return $ modBlocks
 
 
 build    :: PackageDescription  -- ^ Mostly information from the .cabal file
