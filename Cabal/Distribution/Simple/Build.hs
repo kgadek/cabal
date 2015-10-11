@@ -27,13 +27,8 @@ module Distribution.Simple.Build (
   ) where
 
 import Data.List.Split (splitOn)
-import Control.Monad (forM)
-import qualified Debug.Trace as Debug
-import Control.Applicative ((<$>))
-import Data.List (intersperse)
 import System.FilePath (normalise)
 import System.FilePath.Posix (dropExtension)
-import qualified System.FilePath.Glob as Glob
 import qualified Distribution.Simple.GHC   as GHC
 import qualified Distribution.Simple.GHCJS as GHCJS
 import qualified Distribution.Simple.JHC   as JHC
@@ -106,38 +101,26 @@ import System.Directory
 -- -----------------------------------------------------------------------------
 -- |Build the libraries and executables in this package.
 
-deglobTheGlob :: PackageDescription -> IO PackageDescription
-deglobTheGlob pkgDesc =
+expandExtraFileGlobs :: PackageDescription -> IO PackageDescription
+expandExtraFileGlobs pkgDesc =
   case library pkgDesc of
     Nothing -> return pkgDesc
     Just thelib@(exposedModules -> expMod) -> do
-      fpaths <- forM expMod aux
-          --Glob.glob $ intercalate "/" modBlocks  -- not windows compat
-      --Debug.traceShowM pkgDesc
-      Debug.traceShowM fpaths
-      return pkgDesc{library = Just thelib{exposedModules = ModuleName <$> (filter (not.null) . concat $ fpaths)}}
-  where aux :: ModuleName -> IO [[String]]
-        aux (ModuleName modBlocks) | last modBlocks == "*" = do
-            let tmpdir = intercalate "/" modBlocks
-                tmpdir' = takeWhile (/= '*') tmpdir
-            Debug.traceM "<<< modBlocks"
-            Debug.traceShowM modBlocks
-            Debug.traceM "  < tmpdir"
-            Debug.traceShowM tmpdir
-            Debug.traceM "  < tmpdir'"
-            Debug.traceShowM tmpdir'
-            res <- matchDirFileGlob tmpdir' "*.hs"
-            Debug.traceM "  < res"
-            Debug.traceShowM res
-            let res' = fmap (normalise . (tmpdir' ++) . dropExtension) res
-            Debug.traceM "  < res'"
-            Debug.traceShowM res'
-            let res'' = fmap (splitOn "/") res'
-            Debug.traceM "  < res''"
-            Debug.traceShowM res''
-            Debug.traceM ">>>"
-            return res''
-        aux (ModuleName modBlocks) = return . return $ modBlocks
+      fpaths <- mapM expandGlobs expMod 
+      return pkgDesc{ 
+        library = Just thelib{ 
+          exposedModules = ModuleName <$> (filter (not.null) . concat $ fpaths)
+        }
+      }
+  where expandGlobs :: ModuleName -> IO [[String]]
+        expandGlobs (ModuleName modBlocks) 
+          | last modBlocks == "*" =
+              (fmap.fmap) 
+                (splitOn "/" . normalise . (dirName ++) . dropExtension)
+                (matchDirFileGlob dirName "*.hs")
+            where dirName = takeWhile (/= '*') . intercalate "/" $ modBlocks
+        expandGlobs (ModuleName modBlocks) = 
+              return . return $ modBlocks
 
 
 build    :: PackageDescription  -- ^ Mostly information from the .cabal file
@@ -146,8 +129,7 @@ build    :: PackageDescription  -- ^ Mostly information from the .cabal file
          -> [ PPSuffixHandler ] -- ^ preprocessors to run before compiling
          -> IO ()
 build pkg_descr_globbed lbi flags suffixes = do
-  --Debug.traceShowM lbi
-  pkg_descr <- deglobTheGlob pkg_descr_globbed
+  pkg_descr <- expandExtraFileGlobs pkg_descr_globbed
 
   let distPref  = fromFlag (buildDistPref flags)
       verbosity = fromFlag (buildVerbosity flags)
