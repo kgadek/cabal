@@ -1,6 +1,3 @@
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE LambdaCase #-}
-
 -----------------------------------------------------------------------------
 -- |
 -- Module      :  Distribution.Simple.Build
@@ -26,9 +23,6 @@ module Distribution.Simple.Build (
     writeAutogenFiles,
   ) where
 
-import Data.List.Split (splitOn)
-import System.FilePath (normalise)
-import System.FilePath.Posix (dropExtension)
 import qualified Distribution.Simple.GHC   as GHC
 import qualified Distribution.Simple.GHCJS as GHCJS
 import qualified Distribution.Simple.JHC   as JHC
@@ -36,6 +30,7 @@ import qualified Distribution.Simple.LHC   as LHC
 import qualified Distribution.Simple.UHC   as UHC
 import qualified Distribution.Simple.HaskellSuite as HaskellSuite
 
+import qualified Distribution.Simple.Build.Globbing    as Build.Globbing
 import qualified Distribution.Simple.Build.Macros      as Build.Macros
 import qualified Distribution.Simple.Build.PathsModule as Build.PathsModule
 
@@ -52,7 +47,7 @@ import Distribution.PackageDescription
          , BenchmarkInterface(..), allBuildInfo, defaultRenaming )
 import qualified Distribution.InstalledPackageInfo as IPI
 import qualified Distribution.ModuleName as ModuleName
-import Distribution.ModuleName (ModuleName(..))
+import Distribution.ModuleName (ModuleName)
 
 import Distribution.Simple.Setup
          ( Flag(..), BuildFlags(..), ReplFlags(..), fromFlag )
@@ -77,7 +72,7 @@ import Distribution.Simple.Register
 import Distribution.Simple.Test.LibV09 ( stubFilePath, stubName )
 import Distribution.Simple.Utils
          ( createDirectoryIfMissingVerbose, rewriteFile
-         , die, info, debug, warn, setupMessage, matchDirFileGlob )
+         , die, info, debug, warn, setupMessage )
 
 import Distribution.Verbosity
          ( Verbosity )
@@ -101,27 +96,6 @@ import System.Directory
 -- -----------------------------------------------------------------------------
 -- |Build the libraries and executables in this package.
 
-expandExtraFileGlobs :: PackageDescription -> IO PackageDescription
-expandExtraFileGlobs pkgDesc =
-  case library pkgDesc of
-    Nothing -> return pkgDesc
-    Just thelib@(exposedModules -> expMod) -> do
-      fpaths <- mapM expandGlobs expMod 
-      return pkgDesc{ 
-        library = Just thelib{ 
-          exposedModules = ModuleName <$> (filter (not.null) . concat $ fpaths)
-        }
-      }
-  where expandGlobs :: ModuleName -> IO [[String]]
-        expandGlobs (ModuleName modBlocks) 
-          | last modBlocks == "*" =
-              (fmap.fmap) 
-                (splitOn "/" . normalise . (dirName ++) . dropExtension)
-                (matchDirFileGlob dirName "*.hs")
-            where dirName = takeWhile (/= '*') . intercalate "/" $ modBlocks
-        expandGlobs (ModuleName modBlocks) = 
-              return . return $ modBlocks
-
 
 build    :: PackageDescription  -- ^ Mostly information from the .cabal file
          -> LocalBuildInfo      -- ^ Configuration information
@@ -129,7 +103,7 @@ build    :: PackageDescription  -- ^ Mostly information from the .cabal file
          -> [ PPSuffixHandler ] -- ^ preprocessors to run before compiling
          -> IO ()
 build pkg_descr_globbed lbi flags suffixes = do
-  pkg_descr <- expandExtraFileGlobs pkg_descr_globbed
+  pkg_descr <- Build.Globbing.expandExtraFileGlobs pkg_descr_globbed
 
   let distPref  = fromFlag (buildDistPref flags)
       verbosity = fromFlag (buildVerbosity flags)
