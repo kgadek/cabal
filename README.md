@@ -1,6 +1,6 @@
 # Hackaton: note
 
-This project is intended to provide a change in the Cabal parser to make it easier for programmers.
+This project is intended to provide a change in the Cabal parser to make it easier for programmers to use on a daily basis.
 
 Still work in progress. History can be squashed (for PR) at will!
 
