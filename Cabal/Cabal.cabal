@@ -153,7 +153,6 @@ library
     array      >= 0.1 && < 0.6,
     pretty     >= 1   && < 1.2,
     bytestring >= 0.9,
-    Glob       == 0.7.5,
     split      == 0.2.2
 
   if flag(bundled-binary-generic)
@@ -172,7 +171,7 @@ library
   ghc-options: -Wall -fno-ignore-asserts -fwarn-tabs
 
   exposed-modules:
-    Distribution.Compat.*
+    Distribution.Compat.CreatePipe
     Distribution.Compat.Environment
     Distribution.Compat.Exception
     Distribution.Compat.ReadP
