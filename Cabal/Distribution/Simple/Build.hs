@@ -26,8 +26,10 @@ module Distribution.Simple.Build (
   ) where
 
 import Control.Monad (forM)
+import qualified Debug.Trace as Debug
 import Control.Applicative ((<$>))
 import Data.List (intersperse)
+import System.FilePath.Posix (dropExtension)
 import qualified System.FilePath.Glob as Glob
 import qualified Distribution.Simple.GHC   as GHC
 import qualified Distribution.Simple.GHCJS as GHCJS
@@ -77,7 +79,7 @@ import Distribution.Simple.Register
 import Distribution.Simple.Test.LibV09 ( stubFilePath, stubName )
 import Distribution.Simple.Utils
          ( createDirectoryIfMissingVerbose, rewriteFile
-         , die, info, debug, warn, setupMessage )
+         , die, info, debug, warn, setupMessage, matchDirFileGlob )
 
 import Distribution.Verbosity
          ( Verbosity )
@@ -106,7 +108,24 @@ deglobTheGlob pkgDesc =
   case library pkgDesc of
     Nothing -> return pkgDesc
     Just thelib@(exposedModules -> expMod) -> do
-      fpaths <- forM expMod $ \(ModuleName modBlocks) -> Glob.glob $ intercalate "/" modBlocks  -- not windows compat
+      fpaths <- forM expMod $ \(ModuleName modBlocks) -> do
+          let tmpdir = intercalate "/" modBlocks
+              tmpdir' = takeWhile (/= '*') tmpdir
+          Debug.traceM "<<< modBlocks"
+          Debug.traceShowM modBlocks
+          Debug.traceM "  < tmpdir"
+          Debug.traceShowM tmpdir
+          Debug.traceM "  < tmpdir'"
+          Debug.traceShowM tmpdir'
+          res <- matchDirFileGlob tmpdir' ".hs"
+          Debug.traceM "  < res"
+          Debug.traceShowM res
+          Debug.traceM ">>>"
+          return res
+          --Glob.glob $ intercalate "/" modBlocks  -- not windows compat
+      let fpaths' = fmap (fmap dropExtension) fpaths
+      --Debug.traceShowM pkgDesc
+      Debug.traceShowM fpaths'
       return pkgDesc{library = Just thelib{exposedModules = ModuleName <$> fpaths}}
 
 
@@ -116,6 +135,7 @@ build    :: PackageDescription  -- ^ Mostly information from the .cabal file
          -> [ PPSuffixHandler ] -- ^ preprocessors to run before compiling
          -> IO ()
 build pkg_descr_globbed lbi flags suffixes = do
+  --Debug.traceShowM lbi
   pkg_descr <- deglobTheGlob pkg_descr_globbed
 
   let distPref  = fromFlag (buildDistPref flags)
